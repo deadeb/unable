@@ -1,0 +1,8 @@
+{
+    "name": "unable-icons",
+    "private": true,
+    "devDependencies": {
+        "lucide-static": "1.60.0",
+        "sharp": "0.35.5"
+    }
+}

@@ -4,6 +4,7 @@ This repository holds the Unable Luau library. It is public.
 
 - `Unable.lua` — the library itself.
 - `example.lua` — loader example that downloads `Unable.lua` from GitHub.
+- `icons/` — the Lucide sprite atlas and its build script, used by the UI.
 
 ## Workflow
 

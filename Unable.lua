@@ -117,6 +117,94 @@ local Library = { } do
     Library.Font = UiFont
     Library.TitleFont = UiFontBold
 
+    Library.IconAtlas = {
+        Url = "https://raw.githubusercontent.com/deadeb/unable/main/icons/atlas.png",
+        Folder = "UnableAssets",
+        File = "UnableAssets/atlas-1.png",
+        Cell = 96,
+        Columns = 8,
+        Asset = nil,
+        Loaded = false,
+        Icons = {
+            ["bell"] = 1,
+            ["check"] = 2,
+            ["chevron-down"] = 3,
+            ["circle"] = 4,
+            ["command"] = 5,
+            ["copy"] = 6,
+            ["download"] = 7,
+            ["eye"] = 8,
+            ["folder"] = 9,
+            ["home"] = 10,
+            ["layers"] = 11,
+            ["move"] = 12,
+            ["palette"] = 13,
+            ["pencil"] = 14,
+            ["plus"] = 15,
+            ["power"] = 16,
+            ["save"] = 17,
+            ["search"] = 18,
+            ["settings"] = 19,
+            ["share-2"] = 20,
+            ["trash-2"] = 21,
+            ["triangle-alert"] = 22,
+            ["x"] = 23
+        }
+    }
+
+    Library.LoadIconAtlas = function(Self)
+        local Atlas = Library.IconAtlas
+
+        if Atlas.Asset then return true end
+        if Atlas.Loaded then return false end
+        Atlas.Loaded = true
+
+        if not isfile or not writefile or not getcustomasset then
+            return false
+        end
+
+        local Ok = pcall(function()
+            if not isfile(Atlas.File) or #readfile(Atlas.File) < 64 then
+                if makefolder then
+                    pcall(makefolder, Atlas.Folder)
+                end
+
+                local Body = game:HttpGet(Atlas.Url)
+
+                -- PNG magic byte: a 404/HTML body must never be cached as an image.
+                if type(Body) ~= "string" or string.byte(Body, 1) ~= 137 then
+                    error("icon atlas download failed")
+                end
+
+                writefile(Atlas.File, Body)
+            end
+
+            local Asset = getcustomasset(Atlas.File)
+
+            if type(Asset) == "string" and Asset ~= "" then
+                Atlas.Asset = Asset
+            end
+        end)
+
+        return Ok and Atlas.Asset ~= nil
+    end
+
+    local function AtlasRect(Icon)
+        local Atlas = Library.IconAtlas
+        local Index = Atlas.Icons[Icon]
+
+        if not Index then
+            return nil
+        end
+
+        local Zero = Index - 1
+        local Column = Zero % Atlas.Columns
+        local Row = math.floor(Zero / Atlas.Columns)
+
+        return Vector2.new(Column * Atlas.Cell, Row * Atlas.Cell),
+            Vector2.new(Atlas.Cell, Atlas.Cell)
+    end
+
     local IconPack
 
     pcall(function()
@@ -140,6 +228,16 @@ local Library = { } do
 
         if string.match(Icon, "^%d+$") then
             return "rbxassetid://" .. Icon
+        end
+
+        Library:LoadIconAtlas()
+
+        if Library.IconAtlas.Asset then
+            local Offset, Size = AtlasRect(Icon)
+
+            if Offset then
+                return Library.IconAtlas.Asset, Offset, Size
+            end
         end
 
         if IconPack then

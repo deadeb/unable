@@ -3696,7 +3696,7 @@ local Library = { } do
 
         function SubTab:SetVisual(Active, Instant)
             Library:StampResting(Items.Pill.Instance, "BackgroundTransparency", Active and 0 or 1)
-            Library:StampResting(Items.Label.Instance, "TextTransparency", (Active and Window.NavOpen) and 0 or 1)
+            Library:StampResting(Items.Label.Instance, "TextTransparency", Window.NavOpen and 0 or 1)
 
             local Info = Instant and TweenInfo.new(0)
             or TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
@@ -3711,15 +3711,11 @@ local Library = { } do
             Items.Label:ChangeItemTheme({ TextColor3 = Active and "Text" or "DimText" })
             Items.Label:Tween({
                 TextColor3 = Active and Library.Theme.Text or Library.Theme.DimText,
-                TextTransparency = (Active and Window.NavOpen) and 0 or 1
+                TextTransparency = Window.NavOpen and 0 or 1
             }, Info)
         end
 
         function SubTab:SetLabelVisible(Visible)
-            if Tab.Current ~= SubTab then
-                Visible = false
-            end
-
             local Info = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
             local Label = Items.Label.Instance
 

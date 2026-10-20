@@ -132,6 +132,7 @@ local CombatTab = Window:Tab({ Name = "Combat", Icon = "swords" })
 local EspTab = Window:Tab({ Name = "ESP", Icon = "radar" })
 local MovementTab = Window:Tab({ Name = "Movement", Icon = "footprints" })
 local WorldTab = Window:Tab({ Name = "World", Icon = "globe" })
+local SkinsTab = Window:Tab({ Name = "Skins", Icon = "shirt" })
 local MiscTab = Window:Tab({ Name = "Misc", Icon = "wrench" })
 local ConfigTab = Window:Tab({ Name = "Configs", Icon = "folder" })
 
@@ -143,19 +144,101 @@ local Rage = CombatTab:SubTab({ Name = "Rage", Icon = "flame" })
 local Legit = CombatTab:SubTab({ Name = "Legit", Icon = "shield-check" })
 
 local EspMain = EspTab:SubTab({ Name = "Main", Icon = "layout-dashboard" })
-local Chams = EspTab:SubTab({ Name = "Chams", Icon = "shirt" })
+local Chams = EspTab:SubTab({ Name = "Chams", Icon = "palette" })
 
 local Movement = MovementTab:SubTab({ Name = "Movement", Icon = "footprints", Hidden = true })
 
 local World = WorldTab:SubTab({ Name = "World", Icon = "map" })
 local PostProcessing = WorldTab:SubTab({ Name = "Post processing", Icon = "sliders-horizontal" })
 
+-- Skins has no sub tabs; its page lives on a hidden sub tab and the grid
+-- renders every skin as its own 3D viewport widget.
+local Skins = SkinsTab:SubTab({ Name = "Skins", Icon = "shirt", Hidden = true })
+
 local Misc = MiscTab:SubTab({ Name = "Misc", Icon = "wrench", Hidden = true })
 
 local Configs = ConfigTab:SubTab({ Name = "Configs", Icon = "save" })
 
--- The tabs above start empty; add sections and controls with:
+-- The tabs above start empty except Skins; add sections and controls with:
 --     local Aimbot = Rage:Section({ Name = "Aimbot", Side = "Left" })
+
+-- Skins -----------------------------------------------------------------------
+
+-- Placeholder weapon mesh for the viewport tiles. A real skin changer would
+-- load the actual weapon model here and use Callback to apply the pick.
+local function BuildSkin(World, BladeColor, BladeMaterial, BladeAlpha)
+    local Model = Instance.new("Model")
+    Model.Name = "Skin"
+
+    local Blade = Instance.new("Part")
+    Blade.Name = "Blade"
+    Blade.Anchored = true
+    Blade.CanCollide = false
+    Blade.Material = BladeMaterial or Enum.Material.Metal
+    Blade.Color = BladeColor
+    Blade.Transparency = BladeAlpha or 0
+    Blade.Size = Vector3.new(0.22, 2.1, 0.5)
+    Blade.CFrame = CFrame.new(0, 1.1, 0)
+    Blade.Parent = Model
+
+    local Guard = Instance.new("Part")
+    Guard.Name = "Guard"
+    Guard.Anchored = true
+    Guard.CanCollide = false
+    Guard.Material = Enum.Material.Metal
+    Guard.Color = Color3.fromRGB(105, 105, 110)
+    Guard.Size = Vector3.new(0.6, 0.14, 0.72)
+    Guard.CFrame = CFrame.new(0, -0.02, 0)
+    Guard.Parent = Model
+
+    local Handle = Instance.new("Part")
+    Handle.Name = "Handle"
+    Handle.Anchored = true
+    Handle.CanCollide = false
+    Handle.Material = Enum.Material.SmoothPlastic
+    Handle.Color = Color3.fromRGB(28, 28, 32)
+    Handle.Size = Vector3.new(0.34, 1.05, 0.55)
+    Handle.CFrame = CFrame.new(0, -0.6, 0)
+    Handle.Parent = Model
+
+    Model.Parent = World
+    Model:PivotTo(CFrame.Angles(0, math.rad(-35), math.rad(16)))
+
+    return Model
+end
+
+local SkinSection = Skins:Section({ Name = "Weapon skins", Side = "Left" })
+
+SkinSection:ModelGrid({
+    Flag = "WeaponSkin",
+    Default = "Default",
+    Columns = 3,
+    TileHeight = 96,
+    Items = {
+        { Name = "Default", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(205, 205, 210), Enum.Material.Metal)
+        end },
+        { Name = "Crimson", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(205, 45, 55), Enum.Material.Neon)
+        end },
+        { Name = "Gold", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(214, 178, 74), Enum.Material.Metal)
+        end },
+        { Name = "Emerald", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(52, 206, 122), Enum.Material.Neon)
+        end },
+        { Name = "Ice", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(165, 222, 255), Enum.Material.Ice, 0.25)
+        end },
+        { Name = "Void", Build = function(World)
+            BuildSkin(World, Color3.fromRGB(118, 72, 255), Enum.Material.ForceField)
+        end }
+    },
+    Callback = function(Name)
+        -- Skin changer hook: apply the picked skin to the current weapon here.
+        print("[Unable] Weapon skin:", Name)
+    end
+})
 
 -- Configs --------------------------------------------------------------------
 

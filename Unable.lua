@@ -5643,6 +5643,246 @@ local Library = { } do
         return setmetatable(Colorpicker, Library)
     end
 
+    -- ModelGrid: a row of 3D preview tiles. Every item renders its own
+    -- ViewportFrame/WorldModel, so skins and other meshes can be previewed
+    -- per widget without touching the 3D scene.
+    --
+    --   Section:ModelGrid({
+    --       Name = "Weapon skins",
+    --       Flag = "WeaponSkin",
+    --       Default = "Default",
+    --       Columns = 3,
+    --       Items = {
+    --           { Name = "Default", Build = function(WorldModel) ... end }
+    --       },
+    --       Callback = function(Name) end
+    --   })
+    --
+    -- Build receives the entry's WorldModel and can add parts/models to it; a
+    -- camera is auto-framed over whatever was built. Grid:Reframe() re-frames
+    -- every viewport after manual model edits.
+    Library.ModelGrid = function(Self, Params)
+        Params = Params or { }
+
+        local Section = Self
+
+        local Grid = {
+            Name = Params.Name or "Models",
+            Flag = Params.Flag,
+            Callback = Params.Callback or function() end,
+            Default = Params.Default,
+            Value = nil,
+            Selected = nil,
+            Columns = math.max(1, Params.Columns or 4),
+            TileH = math.max(56, Params.TileHeight or 92),
+            Items = { }
+        }
+
+        local List = Params.Items or { }
+        local Gap = 8
+        local PadX = 10
+        local Cols = Grid.Columns
+
+        while Cols > 1
+            and (Section.Width - PadX * 2 - (Cols - 1) * Gap) / Cols < 54 do
+            Cols -= 1
+        end
+
+        local TileW = math.floor((Section.Width - PadX * 2 - (Cols - 1) * Gap) / Cols)
+        local TileH = Grid.TileH
+        local Rows = math.max(1, math.ceil(#List / Cols))
+        local GridH = Rows * TileH + (Rows - 1) * Gap
+
+        Grid.Columns = Cols
+
+        local Row = Section:AddRow(GridH + 8, Grid.Name)
+
+        local function FrameWorld(Data)
+            local Ok, Pivot = pcall(function()
+                return Data.World:GetPivot()
+            end)
+
+            local Ok2, Extents = pcall(function()
+                return Data.World:GetExtentsSize()
+            end)
+
+            Pivot = (Ok and Pivot) or CFrame.new()
+            Extents = (Ok2 and typeof(Extents) == "Vector3" and Extents) or Vector3.zero
+
+            local Radius = math.max(Extents.X, Extents.Y, Extents.Z)
+            local Distance = math.max(Radius, 5) * 1.9
+            local Direction = Vector3.new(-0.45, 0.75, 1.25).Unit
+
+            Data.Camera.FieldOfView = 70
+            Data.Camera.CFrame = CFrame.lookAt(
+                Pivot.Position + Direction * Distance,
+                Pivot.Position
+            )
+        end
+
+        for Index, Entry in List do
+            local Tile = MakeFrame({
+                Parent = Row.Instance,
+                Pos = UDim2.fromOffset(
+                    PadX + ((Index - 1) % Cols) * (TileW + Gap),
+                    4 + math.floor((Index - 1) / Cols) * (TileH + Gap)
+                ),
+                Size = UDim2.fromOffset(TileW, TileH),
+                Color = "Element",
+                Round = 10,
+                Z = 5
+            })
+
+            local Viewport = Library:Create("ViewportFrame", {
+                Parent = Tile.Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                Ambient = Color3.fromRGB(70, 70, 80),
+                LightColor = Color3.fromRGB(245, 245, 235),
+                LightDirection = Vector3.new(-0.35, -1, -0.45).Unit,
+                Position = UDim2.fromOffset(0, 0),
+                Size = UDim2.fromOffset(TileW, TileH - 20),
+                BorderSizePixel = 0,
+                ZIndex = 6
+            })
+
+            local Camera = Instance.new("Camera")
+            Camera.Name = "\0"
+            Camera.FieldOfView = 70
+            Camera.Parent = Viewport.Instance
+            Viewport.Instance.CurrentCamera = Camera
+
+            local WorldModel = Instance.new("WorldModel")
+            WorldModel.Name = "\0"
+            WorldModel.Parent = Viewport.Instance
+
+            local Label = MakeText({
+                Parent = Tile.Instance,
+                Text = Entry.Name or "Item " .. Index,
+                TextSize = 13,
+                Pos = UDim2.fromOffset(2, TileH - 17),
+                Size = UDim2.fromOffset(TileW - 4, 14),
+                Color = "DimText",
+                Align = Enum.TextXAlignment.Center,
+                Truncate = true,
+                Z = 7
+            })
+
+            local Stroke = Library:Create("UIStroke", {
+                Parent = Tile.Instance,
+                Name = "\0",
+                Color = Library.Theme.Accent,
+                Thickness = 1.5,
+                Transparency = 1
+            }):AddToTheme({ Color = "Accent" })
+
+            Library:StampResting(Stroke.Instance, "Transparency", 1)
+
+            local Sweep = MakeSweep(Tile.Instance, 6)
+
+            HoverSwap(Tile)
+
+            local Data = {
+                Index = Index,
+                Name = Entry.Name or "Item " .. Index,
+                Entry = Entry,
+                Tile = Tile,
+                Viewport = Viewport,
+                World = WorldModel,
+                Camera = Camera,
+                Stroke = Stroke,
+                Label = Label
+            }
+
+            Library:SafeCall(Entry.Build, WorldModel)
+            FrameWorld(Data)
+
+            local Hit = MakeButton({
+                Parent = Tile.Instance,
+                Z = 9
+            })
+
+            Hit:Connect("MouseButton1Down", function()
+                PlaySweep(Sweep.Instance)
+                Grid:Select(Data)
+            end)
+
+            table.insert(Grid.Items, Data)
+        end
+
+        function Grid:Select(Target)
+            if type(Target) ~= "table" then
+                for _, Data in Grid.Items do
+                    if Data.Name == Target then
+                        Target = Data
+                        break
+                    end
+                end
+
+                if type(Target) ~= "table" then
+                    Target = nil
+                end
+            end
+
+            local Info = TweenInfo.new(0.14, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+            for _, Data in Grid.Items do
+                local IsSelected = Data == Target
+
+                Library:StampResting(Data.Stroke.Instance, "Transparency", IsSelected and 0 or 1)
+                Data.Stroke:Tween({ Transparency = IsSelected and 0 or 1 }, Info)
+
+                Data.Label:ChangeItemTheme({
+                    TextColor3 = IsSelected and "Text" or "DimText"
+                })
+                Data.Label:Tween({
+                    TextColor3 = IsSelected and Library.Theme.Text or Library.Theme.DimText
+                }, Info)
+            end
+
+            Grid.Selected = Target
+            Grid.Value = Target and Target.Name or nil
+
+            if Grid.Flag then
+                Library.Flags[Grid.Flag] = Grid.Value
+            end
+
+            Library:SafeCall(Grid.Callback, Grid.Value)
+        end
+
+        function Grid:Set(Name)
+            Grid:Select(Name)
+        end
+
+        function Grid:Get()
+            return Grid.Value
+        end
+
+        function Grid:Reframe()
+            for _, Data in Grid.Items do
+                FrameWorld(Data)
+            end
+        end
+
+        function Grid:Disable()
+            Grid:Select(Grid.Default)
+        end
+
+        table.insert(Library.FeatureControls, Grid)
+
+        if Grid.Flag then
+            Library.SetFlags[Grid.Flag] = function(Value)
+                Grid:Select(Value)
+            end
+        end
+
+        if Grid.Default ~= nil then
+            Grid:Select(Grid.Default)
+        end
+
+        return setmetatable(Grid, Library)
+    end
+
     Library.Label = function(Self, Params)
         Params = Params or { }
 

@@ -2487,6 +2487,7 @@ local Library = { } do
             IsOpen = true,
             NavOpen = false,
             NavPinned = false,
+            NavLaidOut = false,
             Tabs = { },
             Current = nil,
             ContentW = ContentW,
@@ -3181,25 +3182,47 @@ local Library = { } do
             )
         end
 
-        function Window:LayoutNav()
+        local NavInfo = TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+        function Window:LayoutNav(Instant)
+            if not Window.NavLaidOut then
+                Window.NavLaidOut = true
+                Instant = true
+            end
+
+            local Info = Instant and TweenInfo.new(0) or NavInfo
             local Y = 12
+            local SubsOpen = Window.NavOpen
 
             for _, Tab in Window.Tabs do
-                Tab.Items.Row.Instance.Position = UDim2.fromOffset(8, Y)
+                Library:Tween({
+                    Position = UDim2.fromOffset(8, Y)
+                }, Info, Tab.Items.Row.Instance)
+
                 Y += 44
 
                 local ShowSubs = Window.Current == Tab
 
                 for _, Sub in Tab.Subs do
-                    Sub.Items.Pill.Instance.Visible = ShowSubs
+                    local Pill = Sub.Items.Pill.Instance
+                    local Visible = ShowSubs and SubsOpen
 
-                    if ShowSubs then
-                        Sub.Items.Pill.Instance.Position = UDim2.fromOffset(26, Y)
+                    if Visible then
+                        if not Pill.Visible then
+                            Pill.Position = UDim2.fromOffset(20, Y)
+                        end
+
+                        Library:Tween({
+                            Position = UDim2.fromOffset(26, Y)
+                        }, Info, Pill)
+
                         Y += 32
                     end
+
+                    Pill.Visible = Visible
                 end
 
-                if ShowSubs and #Tab.Subs > 0 then
+                if ShowSubs and SubsOpen and #Tab.Subs > 0 then
                     Y += 4
                 end
             end
@@ -3218,11 +3241,21 @@ local Library = { } do
 
             Window.NavOpen = Bool
 
-            local Info = TweenInfo.new(0.24, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-
             Library:Tween({
                 Size = UDim2.fromOffset(Bool and NavOpenW or NavW, H - TopH)
-            }, Info, Items.Sidebar.Instance)
+            }, NavInfo, Items.Sidebar.Instance)
+
+            if Bool then
+                Window:LayoutNav()
+            else
+                -- Let the rail finish collapsing before the sub icons leave, so
+                -- they are clipped away with it instead of popping out mid-tween.
+                task.delay(NavInfo.Time + 0.01, function()
+                    if not Window.NavOpen then
+                        Window:LayoutNav()
+                    end
+                end)
+            end
 
             Window:ApplyNavLabels()
         end
@@ -3804,8 +3837,13 @@ local Library = { } do
             Items.Page:CancelFade()
             Items.Page:HardRestore()
             Items.Page.Instance.Parent = Window.Items.Content.Instance
-            Items.Page.Instance.Position = UDim2.fromOffset(0, 0)
+            Items.Page.Instance.Position = UDim2.fromOffset(PageSlide, 0)
             Items.Page.Instance.Visible = true
+
+            -- Slide the whole page in; the section rows stagger on top of it.
+            PageTween = Library:Tween({
+                Position = UDim2.fromOffset(0, 0)
+            }, RowIn, Items.Page.Instance)
 
             Library:SafeCall(SubTab.PageIntro)
 

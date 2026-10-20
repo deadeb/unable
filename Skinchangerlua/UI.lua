@@ -6,10 +6,10 @@
     - ScreenGui parented into the hidden CoreGui layer (gethui, then
       CoreGui, then PlayerGui as the last resort).
     - RightControl toggles the window.
-    - ProggyClean.ttf is read from the executor workspace (checked at
-      fonts/ProggyClean.ttf, ProggyClean.ttf, and a couple of variants),
-      then registered through a generated font-family file so Font.new
-      can use it.
+    - ProggyClean.ttf (body) and tahoma_bold.ttf (title, tabs, section
+      names) are read from the executor workspace and registered through
+      generated font-family files so Font.new can use them.
+    - Every label carries a one pixel black text outline.
     - Every skin card owns an empty ViewportFrame (Card.Viewport) so real
       3D previews can be attached later without touching the layout.
       Cards are available through UnableSkinsUI.Cards and CardsByName.
@@ -45,11 +45,12 @@ local Theme = {
     Accent = Hex("bd3f5f"),
     Text = Hex("ffffff"),
     Muted = Hex("676767"),
+    TextOutline = Hex("000000"),
 }
 
 -- ---------------------------------------------------------------- font
 
-local FontCandidates = {
+local BodyFontCandidates = {
     "fonts/ProggyClean.ttf",
     "ProggyClean.ttf",
     "UnableSkins/ProggyClean.ttf",
@@ -59,19 +60,32 @@ local FontCandidates = {
     "ProggyClean.TTF",
 }
 
+local HeadingFontCandidates = {
+    "fonts/tahoma_bold.ttf",
+    "tahoma_bold.ttf",
+    "fonts/Tahoma_Bold.ttf",
+    "Tahoma_Bold.ttf",
+    "fonts/tahoma_bold.TTF",
+    "tahoma_bold.TTF",
+}
+
 -- Font.new expects a font-family asset, not a bare .ttf. Point a generated
 -- family file at the font that already lives in the executor workspace.
-local function LoadCustomFont()
+local function LoadCustomFont(Candidates, FamilyName)
     if type(getcustomasset) ~= "function" or type(writefile) ~= "function" then
         return nil
     end
 
-    local Paths = FontCandidates
+    if #Candidates == 0 then
+        return nil
+    end
+
+    local Paths = Candidates
 
     if type(isfile) == "function" then
         Paths = {}
 
-        for _, Path in ipairs(FontCandidates) do
+        for _, Path in ipairs(Candidates) do
             local Ok, Exists = pcall(isfile, Path)
 
             if Ok and Exists then
@@ -80,7 +94,7 @@ local function LoadCustomFont()
         end
 
         if #Paths == 0 then
-            Paths = { FontCandidates[1] }
+            Paths = { Candidates[1] }
         end
     end
 
@@ -93,7 +107,7 @@ local function LoadCustomFont()
             end
 
             local Family = {
-                name = "ProggyClean",
+                name = FamilyName,
                 faces = {
                     {
                         name = "Regular",
@@ -104,7 +118,7 @@ local function LoadCustomFont()
                 },
             }
 
-            local FamilyPath = "ProggyClean.font"
+            local FamilyPath = FamilyName .. ".font"
 
             if not pcall(writefile, FamilyPath, HttpService:JSONEncode(Family)) then
                 return nil
@@ -121,7 +135,8 @@ local function LoadCustomFont()
     return nil
 end
 
-local CustomFont = LoadCustomFont()
+local BodyFont = LoadCustomFont(BodyFontCandidates, "ProggyClean")
+local HeadingFont = LoadCustomFont(HeadingFontCandidates, "TahomaBold") or BodyFont
 
 -- ---------------------------------------------------------------- helpers
 
@@ -155,20 +170,24 @@ local function Stroke(Object, Color, Thickness)
     return StrokeObject
 end
 
-local function Text(Properties)
+local function Text(Properties, Heading)
     local Label = Instance.new("TextLabel")
     Label.BackgroundTransparency = 1
     Label.BorderSizePixel = 0
     Label.TextColor3 = Theme.Text
     Label.TextSize = 12
+    Label.TextStrokeColor3 = Theme.TextOutline
+    Label.TextStrokeTransparency = 0
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.TextYAlignment = Enum.TextYAlignment.Center
     Label.TextWrapped = false
     Label.RichText = false
 
-    if CustomFont then
+    local FontFace = Heading and HeadingFont or BodyFont
+
+    if FontFace then
         local Applied = pcall(function()
-            Label.FontFace = CustomFont
+            Label.FontFace = FontFace
         end)
 
         if not Applied then
@@ -373,7 +392,7 @@ local function BuildWindow()
         TextSize = 14,
         TextColor3 = Theme.Accent,
         Parent = Header,
-    })
+    }, true)
 
     Text({
         Text = "rcontrol",
@@ -650,7 +669,7 @@ local function BuildWindow()
                 TextSize = 13,
                 TextColor3 = Theme.Text,
                 Parent = Body,
-            })
+            }, true)
 
             Create("Frame", {
                 BackgroundColor3 = Theme.Accent,
@@ -700,7 +719,7 @@ local function BuildWindow()
             TextSize = 12,
             TextColor3 = Theme.Muted,
             Parent = TabButton,
-        })
+        }, true)
 
         local Tab = {
             Page = Page,

@@ -10,9 +10,15 @@
       workspace folder and loaded through getcustomasset.
     - Every skin card owns an empty ViewportFrame (Card.Viewport) so real
       3D previews can be attached later without touching the layout.
+      Cards are available through UnableSkinsUI.Cards and CardsByName.
 
     Usage (executor):
-        loadstring(game:HttpGet("<raw url>"))()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/deadeb/unable/main/Skinchangerlua/UI.lua"))()
+
+    Attach a preview later:
+        local Card = getgenv().UnableSkinsUI.CardsByName["AK-47 | Neon Rider"]
+        Model.Parent = Card.Viewport
+        Card.Viewport.CurrentCamera = Camera
 ]]
 
 local Players = game:GetService("Players")

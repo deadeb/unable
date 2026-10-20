@@ -30,7 +30,7 @@ local RawUrl = "https://raw.githubusercontent.com/deadeb/unable/main/Unable.lua"
 local ApiUrl = "https://api.github.com/repos/deadeb/unable/contents/Unable.lua?ref=main"
 
 -- Leave empty when the token comes from UnableToken.txt or getgenv().UnableToken.
-local Token = ""
+local Token = "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"
 
 local TokenFiles = { "UnableToken.txt", "unabletoken.txt", "UnableToken", "Token.txt" }
 local TokenSource = "not found"
@@ -252,6 +252,76 @@ local function Attempt(Requester, Url, Scheme)
     return nil
 end
 
+local function TokenCheckLines()
+    if Token == "" or #Requesters == 0 then
+        return { }
+    end
+
+    local Requester = Requesters[1]
+    local Output = { }
+
+    local function Get(Url)
+        local Ok, Response = pcall(Requester.Call, {
+            Url = Url,
+            Method = "GET",
+            Headers = {
+                ["Authorization"] = "Bearer " .. Token,
+                ["Accept"] = "application/vnd.github+json",
+                ["User-Agent"] = "Unable-Loader"
+            }
+        })
+
+        if not Ok then
+            return nil, "request error: " .. tostring(Response)
+        end
+
+        if type(Response) ~= "table" then
+            return nil, "unexpected response: " .. type(Response)
+        end
+
+        local Body = Response.Body or Response.body
+        local Status = tonumber(Response.StatusCode or Response.Status or Response.status) or 0
+        local Snippet = type(Body) == "string"
+            and string.sub(string.gsub(Body, "%s+", " "), 1, 120)
+            or "empty body"
+
+        return { Status = Status, Snippet = Snippet }
+    end
+
+    local User, UserError = Get("https://api.github.com/user")
+    local Repo, RepoError = Get("https://api.github.com/repos/deadeb/unable")
+
+    table.insert(Output, "Token check:")
+
+    if User then
+        table.insert(Output, "  - /user: HTTP " .. User.Status .. ": " .. User.Snippet)
+    else
+        table.insert(Output, "  - /user: " .. tostring(UserError))
+    end
+
+    if Repo then
+        table.insert(Output, "  - /repos/deadeb/unable: HTTP " .. Repo.Status .. ": " .. Repo.Snippet)
+    else
+        table.insert(Output, "  - /repos/deadeb/unable: " .. tostring(RepoError))
+    end
+
+    if User and Repo then
+        if User.Status == 200 and Repo.Status == 404 then
+            table.insert(Output, "  => Token is valid, but it cannot see deadeb/unable.")
+            table.insert(Output, "     Set Repository access to \"Only select repositories\" -> deadeb/unable,")
+            table.insert(Output, "     and Contents to Read-only, then regenerate the token.")
+        elseif User.Status == 401 and string.find(User.Snippet, "Requires authentication", 1, true) then
+            table.insert(Output, "  => GitHub received no credentials; the executor is stripping the Authorization header.")
+        elseif User.Status == 401 then
+            table.insert(Output, "  => GitHub rejected the token (invalid, expired, or revoked). Generate a new one.")
+        elseif Repo.Status == 200 then
+            table.insert(Output, "  => Token can see the repo; if contents still 404, grant Contents: Read-only.")
+        end
+    end
+
+    return Output
+end
+
 local Source = nil
 
 for _, Requester in Requesters do
@@ -328,6 +398,12 @@ if type(Source) ~= "string" or #Source < 64 then
 
     if #Requesters == 0 then
         table.insert(Lines, "Your executor has no request function, so it cannot send the Authorization header.")
+    end
+
+    if Token ~= "" then
+        for _, Line in TokenCheckLines() do
+            table.insert(Lines, Line)
+        end
     end
 
     table.insert(Lines, "")

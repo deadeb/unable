@@ -1,420 +1,115 @@
 --[[
     Unable - example loader
 
-    The deadeb/unable repository is private, so this loader fetches Unable.lua
-    through the authenticated GitHub Contents API.
+    The deadeb/unable repository is public, so the loader downloads Unable.lua
+    from the raw URL directly.
 
-    Token setup (pick one):
-        1. In the executor, run this once (writes into the executor workspace):
-               writefile("UnableToken.txt", "github_pat_...")
-        2. Or set it for the current session before running this script:
-               getgenv().UnableToken = "github_pat_..."
-        3. Or paste it into the Token constant below.
+    Usage (executor):
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/deadeb/unable/main/example.lua"))()
 
-    The token needs Contents: Read-only access to deadeb/unable
-    (fine-grained token, repository access = deadeb/unable only;
-    classic token: the "repo" scope).
+    Or paste this file into your executor and run it.
 
-    Never commit a real token: UnableToken.txt is git-ignored on purpose.
+    If the repository is ever made private again, set a token and the loader
+    will fall back to the authenticated GitHub Contents API:
+        getgenv().UnableToken = "github_pat_..."
+    or put the token in UnableToken.txt in the executor workspace.
 
-    Usage:
-        Paste this file into your executor and run it. (It cannot fetch itself
-        from GitHub while the repository is private - the token has to come
-        from somewhere the executor can already read.)
-
-    If the repository is ever made public, the loader falls back to the plain
-    raw URL automatically when no token is set.
+    Never commit a real token.
 ]]
 
 local RawUrl = "https://raw.githubusercontent.com/deadeb/unable/main/Unable.lua"
 local ApiUrl = "https://api.github.com/repos/deadeb/unable/contents/Unable.lua?ref=main"
 
--- Leave empty when the token comes from UnableToken.txt or getgenv().UnableToken.
-local Token = "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"
-
-local TokenFiles = { "UnableToken.txt", "unabletoken.txt", "UnableToken", "Token.txt" }
-local TokenSource = "not found"
-
-local function NormalizeToken(Text)
-    if type(Text) ~= "string" then return "" end
-
-    Text = string.gsub(Text, "^\239\187\191", "")
-
-    local Quoted = string.match(Text, "[\"']([%w_%-]+)[\"']")
-    local Keyed = string.match(Text, "[Tt][Oo][Kk][Ee][Nn]%s*[:=]%s*([%w_%-]+)")
-    local Bearer = string.match(Text, "[Bb][Ee][Aa][Rr][Ee][Rr]%s+([%w_%-]+)")
-
-    Text = Quoted or Keyed or Bearer or Text
-    Text = string.gsub(Text, "[^%w_%-]", "")
-
-    return Text
+local function IsLibrary(Source)
+    return type(Source) == "string"
+        and #Source >= 64
+        and string.find(Source, "local Library", 1, true) ~= nil
 end
 
-local function LoadToken()
-    local Env = type(getgenv) == "function" and getgenv().UnableToken or nil
-    local Clean = NormalizeToken(Env)
+local function ReadToken()
+    local Token = type(getgenv) == "function" and getgenv().UnableToken or nil
 
-    if #Clean >= 20 then
-        TokenSource = "getgenv().UnableToken"
-        return Clean
-    end
-
-    Clean = NormalizeToken(Token)
-
-    if #Clean >= 20 then
-        TokenSource = "Token constant"
-        return Clean
-    end
-
-    for _, Name in TokenFiles do
-        local Ok, Content = pcall(readfile, Name)
+    if type(Token) ~= "string" or Token == "" then
+        local Ok, Content = pcall(readfile, "UnableToken.txt")
 
         if Ok and type(Content) == "string" then
-            Clean = NormalizeToken(Content)
-
-            if #Clean >= 20 then
-                TokenSource = Name
-                return Clean
-            elseif #Content > 0 then
-                TokenSource = Name .. " (invalid or placeholder)"
-            end
+            Token = Content
         end
     end
 
-    return ""
-end
-
-Token = LoadToken()
-
-local HttpService = game:GetService("HttpService")
-local Base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
-local function Base64Decode(Input)
-    local Lookup = { }
-
-    for Index = 1, #Base64Chars do
-        Lookup[string.sub(Base64Chars, Index, Index)] = Index - 1
+    if type(Token) ~= "string" then
+        return ""
     end
 
-    Input = string.gsub(Input, "[^" .. Base64Chars .. "=]", "")
-    Input = string.gsub(Input, "=", "")
+    Token = string.gsub(Token, "%s+", "")
+    Token = string.gsub(Token, "[\"']", "")
 
-    local Output = { }
-    local Buffer = 0
-    local Bits = 0
-
-    for Index = 1, #Input do
-        local Value = Lookup[string.sub(Input, Index, Index)]
-
-        if Value then
-            Buffer = Buffer * 64 + Value
-            Bits = Bits + 6
-
-            if Bits >= 8 then
-                Bits = Bits - 8
-
-                local Byte = math.floor(Buffer / (2 ^ Bits)) % 256
-                table.insert(Output, string.char(Byte))
-                Buffer = Buffer % (2 ^ Bits)
-            end
-        end
-    end
-
-    return table.concat(Output)
+    return Token
 end
 
-local Requesters = { }
-local SeenRequesters = { }
+local function FetchApi(Token)
+    local Requester = (syn and syn.request)
+        or (http and http.request)
+        or http_request
+        or request
 
-local function AddRequester(Name, Function)
-    if type(Function) ~= "function" or SeenRequesters[Function] then return end
-
-    SeenRequesters[Function] = true
-    table.insert(Requesters, {
-        Name = Name,
-        Call = function(Options)
-            return Function(Options)
-        end
-    })
-end
-
-AddRequester("syn.request", syn and syn.request)
-AddRequester("http.request", http and http.request)
-AddRequester("http_request", http_request)
-AddRequester("request", request)
-AddRequester("fluxus.request", fluxus and fluxus.request)
-
-local AttemptLog = { }
-local SourceInfo = "unknown"
-
-local function DecodeContents(Body)
-    if string.find(Body, "local Library", 1, true) then
-        return Body
-    end
-
-    local Ok, Data = pcall(function()
-        return HttpService:JSONDecode(Body)
-    end)
-
-    if not Ok or type(Data) ~= "table" or type(Data.content) ~= "string" then
+    if not Requester then
         return nil
     end
 
-    local Encoded = string.gsub(Data.content, "%s+", "")
-
-    for _, Decoder in { syn and syn.base64_decode, crypt and crypt.base64decode, base64_decode } do
-        if type(Decoder) == "function" then
-            local Done, Decoded = pcall(Decoder, Encoded)
-
-            if Done and type(Decoded) == "string" and string.find(Decoded, "local Library", 1, true) then
-                return Decoded
-            end
-        end
-    end
-
-    local Decoded = Base64Decode(Encoded)
-
-    if string.find(Decoded, "local Library", 1, true) then
-        return Decoded
-    end
-
-    return nil
-end
-
-local function Try(Requester, Url, Scheme)
     local Headers = {
         ["Accept"] = "application/vnd.github.raw",
         ["User-Agent"] = "Unable-Loader",
         ["X-GitHub-Api-Version"] = "2022-11-28"
     }
 
-    if Token ~= "" and Scheme then
-        Headers["Authorization"] = Scheme .. " " .. Token
+    if Token ~= "" then
+        Headers["Authorization"] = "Bearer " .. Token
     end
 
-    local Ok, Response = pcall(Requester.Call, {
-        Url = Url,
+    local Ok, Response = pcall(Requester, {
+        Url = ApiUrl,
         Method = "GET",
         Headers = Headers
     })
 
-    if not Ok then
-        return nil, "request error: " .. tostring(Response)
+    if not Ok or type(Response) ~= "table" then
+        return nil
     end
 
-    if type(Response) == "string" then
-        local LibraryBody = DecodeContents(Response)
+    local Body = Response.Body or Response.body
 
-        if LibraryBody then
-            return LibraryBody
-        end
-
-        return nil, "unexpected body: " .. string.sub(string.gsub(Response, "%s+", " "), 1, 160)
-    end
-
-    if type(Response) ~= "table" then
-        return nil, "unexpected response type: " .. type(Response)
-    end
-
-    local Body = Response.Body or Response.body or Response.Content or Response.content
-    local Status = tonumber(Response.StatusCode or Response.Status or Response.status) or 0
-
-    if type(Body) ~= "string" or Body == "" then
-        return nil, "empty body (HTTP " .. tostring(Status) .. ")"
-    end
-
-    local Snippet = string.sub(string.gsub(Body, "%s+", " "), 1, 160)
-
-    if Status >= 400 then
-        return nil, "HTTP " .. tostring(Status) .. ": " .. Snippet
-    end
-
-    local LibraryBody = DecodeContents(Body)
-
-    if LibraryBody then
-        return LibraryBody
-    end
-
-    return nil, "HTTP " .. tostring(Status) .. " (unexpected body): " .. Snippet
-end
-
-local function Attempt(Requester, Url, Scheme)
-    local Body, Err = Try(Requester, Url, Scheme)
-    local Label = Url == ApiUrl and "api" or "raw"
-    local Auth = Scheme and (" " .. Scheme) or " no-auth"
-
-    if Body then
-        SourceInfo = Requester.Name .. " [" .. Label .. "," .. Auth .. "]"
+    if IsLibrary(Body) then
         return Body
     end
 
-    table.insert(AttemptLog, Requester.Name .. " [" .. Label .. "," .. Auth .. "] -> " .. tostring(Err))
     return nil
 end
 
-local function TokenCheckLines()
-    if Token == "" or #Requesters == 0 then
-        return { }
-    end
-
-    local Requester = Requesters[1]
-    local Output = { }
-
-    local function Get(Url)
-        local Ok, Response = pcall(Requester.Call, {
-            Url = Url,
-            Method = "GET",
-            Headers = {
-                ["Authorization"] = "Bearer " .. Token,
-                ["Accept"] = "application/vnd.github+json",
-                ["User-Agent"] = "Unable-Loader"
-            }
-        })
-
-        if not Ok then
-            return nil, "request error: " .. tostring(Response)
-        end
-
-        if type(Response) ~= "table" then
-            return nil, "unexpected response: " .. type(Response)
-        end
-
-        local Body = Response.Body or Response.body
-        local Status = tonumber(Response.StatusCode or Response.Status or Response.status) or 0
-        local Snippet = type(Body) == "string"
-            and string.sub(string.gsub(Body, "%s+", " "), 1, 120)
-            or "empty body"
-
-        return { Status = Status, Snippet = Snippet }
-    end
-
-    local User, UserError = Get("https://api.github.com/user")
-    local Repo, RepoError = Get("https://api.github.com/repos/deadeb/unable")
-
-    table.insert(Output, "Token check:")
-
-    if User then
-        table.insert(Output, "  - /user: HTTP " .. User.Status .. ": " .. User.Snippet)
-    else
-        table.insert(Output, "  - /user: " .. tostring(UserError))
-    end
-
-    if Repo then
-        table.insert(Output, "  - /repos/deadeb/unable: HTTP " .. Repo.Status .. ": " .. Repo.Snippet)
-    else
-        table.insert(Output, "  - /repos/deadeb/unable: " .. tostring(RepoError))
-    end
-
-    if User and Repo then
-        if User.Status == 200 and Repo.Status == 404 then
-            table.insert(Output, "  => Token is valid, but it cannot see deadeb/unable.")
-            table.insert(Output, "     Set Repository access to \"Only select repositories\" -> deadeb/unable,")
-            table.insert(Output, "     and Contents to Read-only, then regenerate the token.")
-        elseif User.Status == 401 and string.find(User.Snippet, "Requires authentication", 1, true) then
-            table.insert(Output, "  => GitHub received no credentials; the executor is stripping the Authorization header.")
-        elseif User.Status == 401 then
-            table.insert(Output, "  => GitHub rejected the token (invalid, expired, or revoked). Generate a new one.")
-        elseif Repo.Status == 200 then
-            table.insert(Output, "  => Token can see the repo; if contents still 404, grant Contents: Read-only.")
-        end
-    end
-
-    return Output
-end
-
 local Source = nil
+local LoadedVia = "raw"
 
-for _, Requester in Requesters do
-    if Token ~= "" then
-        Source = Source or Attempt(Requester, ApiUrl, "Bearer")
-        Source = Source or Attempt(Requester, ApiUrl, "token")
-        Source = Source or Attempt(Requester, RawUrl, "Bearer")
-        Source = Source or Attempt(Requester, RawUrl, "token")
-    else
-        Source = Source or Attempt(Requester, RawUrl)
-        Source = Source or Attempt(Requester, ApiUrl)
-    end
+local Ok, Body = pcall(function()
+    return game:HttpGet(RawUrl)
+end)
 
-    if Source then break end
+if Ok and IsLibrary(Body) then
+    Source = Body
+else
+    Source = FetchApi(ReadToken())
+    LoadedVia = "api (fallback)"
 end
 
-if not Source then
-    local Ok, Body = pcall(function()
-        return game:HttpGet(RawUrl)
-    end)
-
-    if Ok and type(Body) == "string" and string.find(Body, "local Library", 1, true) then
-        Source = Body
-        SourceInfo = "game:HttpGet [raw,no-auth]"
-    else
-        table.insert(AttemptLog, "game:HttpGet [raw,no-auth] -> " .. (Ok and "unexpected body" or tostring(Body)))
-    end
+if not IsLibrary(Source) then
+    error(
+        "[Unable] Could not download the library from:\n"
+        .. RawUrl
+        .. "\nCheck the URL in a browser and your executor's HTTP access.",
+        0
+    )
 end
 
-if type(Source) == "string" and #Source >= 64 then
-    print("[Unable] Downloaded Unable.lua via " .. SourceInfo
-        .. " (token: " .. (Token ~= "" and TokenSource or "none")
-        .. ", " .. #Source .. " bytes).")
-end
-
-if type(Source) ~= "string" or #Source < 64 then
-    local RequesterNames = { }
-
-    for _, Requester in Requesters do
-        table.insert(RequesterNames, Requester.Name)
-    end
-
-    local TokenLine
-
-    if Token ~= "" then
-        TokenLine = TokenSource .. ", " .. #Token .. " chars"
-    else
-        TokenLine = "not found"
-
-        if TokenSource ~= "not found" then
-            TokenLine = TokenLine .. " - " .. TokenSource
-        end
-    end
-
-    local Lines = {
-        "[Unable] Could not download the library from GitHub.",
-        "",
-        "Requesters: " .. (#RequesterNames > 0 and table.concat(RequesterNames, ", ") or "none"),
-        "Token: " .. TokenLine
-    }
-
-    if Token == "" then
-        table.insert(Lines, "readfile available: " .. tostring(readfile ~= nil))
-        table.insert(Lines, "Token files checked: " .. table.concat(TokenFiles, ", "))
-    end
-
-    if #AttemptLog > 0 then
-        table.insert(Lines, "Attempts:")
-
-        for _, Entry in AttemptLog do
-            table.insert(Lines, "  - " .. Entry)
-        end
-    end
-
-    if #Requesters == 0 then
-        table.insert(Lines, "Your executor has no request function, so it cannot send the Authorization header.")
-    end
-
-    if Token ~= "" then
-        for _, Line in TokenCheckLines() do
-            table.insert(Lines, Line)
-        end
-    end
-
-    table.insert(Lines, "")
-    table.insert(Lines, "Fix:")
-    table.insert(Lines, "  - run once in the executor: writefile(\"UnableToken.txt\", \"github_pat_...\")")
-    table.insert(Lines, "  - or set getgenv().UnableToken = \"github_pat_...\" before running this script")
-    table.insert(Lines, "  - or paste it into the Token constant at the top of this file")
-    table.insert(Lines, "Token needs Contents: Read-only access to deadeb/unable.")
-
-    error(table.concat(Lines, "\n"), 0)
-end
+print("[Unable] Downloaded Unable.lua via " .. LoadedVia .. " (" .. #Source .. " bytes).")
 
 local Chunk, CompileError = loadstring(Source)
 

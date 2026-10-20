@@ -1,6 +1,6 @@
 # Unable — repository notes
 
-This repository holds the Unable Luau library. It is private.
+This repository holds the Unable Luau library. It is public.
 
 - `Unable.lua` — the library itself.
 - `example.lua` — loader example that downloads `Unable.lua` from GitHub.
@@ -9,12 +9,11 @@ This repository holds the Unable Luau library. It is private.
 
 - After every change to any file, commit it and push to `origin main`
   (`https://github.com/deadeb/unable.git`).
-- Because the repository is private, `example.lua` fetches `Unable.lua`
-  through the authenticated GitHub Contents API
-  (`https://api.github.com/repos/deadeb/unable/contents/Unable.lua?ref=main`).
-- The GitHub token must never be committed. It comes from a local
-  `UnableToken.txt` (git-ignored) or the empty `Token` constant in
-  `example.lua`, which the operator fills in locally only.
-- Untokened `game:HttpGet` on the raw URL
-  (`https://raw.githubusercontent.com/deadeb/unable/main/Unable.lua`) is only
-  kept as a fallback for the case the repository becomes public.
+- `example.lua` downloads `Unable.lua` from the raw URL on `main`
+  (`https://raw.githubusercontent.com/deadeb/unable/main/Unable.lua`).
+- If the repository is ever made private again, `example.lua` falls back to the
+  authenticated GitHub Contents API
+  (`https://api.github.com/repos/deadeb/unable/contents/Unable.lua?ref=main`)
+  using a token from `getgenv().UnableToken` or the git-ignored
+  `UnableToken.txt`.
+- The GitHub token must never be committed. `UnableToken.txt` is git-ignored.

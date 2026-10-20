@@ -1,27 +1,95 @@
 --[[
     Unable - example loader
 
-    Downloads the latest Unable.lua straight from GitHub and builds a small
-    demo interface against it.
+    The deadeb/unable repository is private, so this loader fetches Unable.lua
+    through the authenticated GitHub Contents API.
 
-    Usage (executor):
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/deadeb/unable/main/example.lua"))()
+    Token setup (pick one):
+        1. Executor workspace file: create "UnableToken.txt" and put a
+           fine-grained GitHub token in it (Repository access: deadeb/unable,
+           Permissions: Contents = Read-only). Nothing else in the file.
+        2. Or paste the token into the Token constant below.
 
-    Or just paste this file into your executor and run it.
+    Never commit a real token: UnableToken.txt is git-ignored on purpose.
+
+    Usage:
+        Paste this file into your executor and run it. (It cannot fetch itself
+        from GitHub while the repository is private - the token has to come
+        from somewhere the executor can already read.)
+
+    If the repository is ever made public, the loader falls back to the plain
+    raw URL automatically when no token is set.
 ]]
 
 local RawUrl = "https://raw.githubusercontent.com/deadeb/unable/main/Unable.lua"
+local ApiUrl = "https://api.github.com/repos/deadeb/unable/contents/Unable.lua?ref=main"
 
-local Source = game:HttpGet(RawUrl)
+-- Leave empty when the token comes from UnableToken.txt.
+local Token = ""
 
-if type(Source) ~= "string" or #Source < 64 then
-    error("[Unable] Failed to download the library from " .. RawUrl)
+if Token == "" and isfile and isfile("UnableToken.txt") then
+    local Ok, Content = pcall(readfile, "UnableToken.txt")
+
+    if Ok and type(Content) == "string" then
+        Token = string.gsub(Content, "%s+", "")
+    end
+end
+
+local function GetRequester()
+    return (syn and syn.request)
+    or (http and http.request)
+    or (fluxus and fluxus.request)
+    or http_request
+    or request
+end
+
+local function Fetch()
+    local Requester = GetRequester()
+
+    if Token ~= "" and Requester then
+        local Ok, Response = pcall(Requester, {
+            Url = ApiUrl,
+            Method = "GET",
+            Headers = {
+                ["Authorization"] = "Bearer " .. Token,
+                ["Accept"] = "application/vnd.github.raw",
+                ["User-Agent"] = "Unable-Loader"
+            }
+        })
+
+        if Ok and type(Response) == "table" and type(Response.Body) == "string" then
+            return Response.Body
+        end
+    end
+
+    -- Untokened fallback: works only if the repository is public.
+    local Ok, Body = pcall(function()
+        return game:HttpGet(Token ~= "" and ApiUrl or RawUrl)
+    end)
+
+    if Ok then
+        return Body
+    end
+
+    return nil
+end
+
+local Source = Fetch()
+
+if type(Source) ~= "string" or #Source < 64 or not string.find(Source, "local Library", 1, true) then
+    error(
+        "[Unable] Could not download the library.\n"
+        .. "The repository is private, so a token is required:\n"
+        .. "  - create UnableToken.txt (fine-grained token, Contents: Read-only) in your executor workspace, or\n"
+        .. "  - paste the token into the Token constant in this file.",
+        0
+    )
 end
 
 local Chunk, CompileError = loadstring(Source)
 
 if not Chunk then
-    error("[Unable] Failed to compile the library: " .. tostring(CompileError))
+    error("[Unable] Failed to compile the library: " .. tostring(CompileError), 0)
 end
 
 local Library = Chunk()
@@ -178,7 +246,7 @@ Theme:Button({
 
 Library:Notification({
     Name = "Unable loaded",
-    Description = "Loaded from " .. RawUrl,
+    Description = "Loaded from the GitHub repository.",
     Icon = "check",
     Duration = 5
 })

@@ -317,6 +317,7 @@ local Library = { } do
     Library.AccentShadows = { }
     Library.OpenFrames = { }
     Library.Windows = { }
+    Library.FeatureControls = { }
     Library.Notifs = { }
     Library.TouchButtons = { }
     Library.TouchShields = { }
@@ -862,7 +863,44 @@ local Library = { } do
         end)
     end
 
-    Library.Unload = function(Self)
+    Library.DisableFeatures = function(Self)
+        for _, Control in table.clone(Library.FeatureControls) do
+            local Disable = Control.Disable
+
+            if type(Disable) == "function" then
+                Library:SafeCall(Disable, Control)
+            end
+        end
+    end
+
+    Library.Shutdown = function(Self)
+        if Library.ShuttingDown then return end
+        Library.ShuttingDown = true
+
+        Library:DisableFeatures()
+
+        local Fading = false
+
+        for _, Window in Library.Windows do
+            if Window.SetOpen and Window.IsOpen then
+                Window:SetOpen(false)
+                Fading = true
+            end
+        end
+
+        task.delay(Fading and Library.Animation.Time + 0.12 or 0, function()
+            Library:Unload(true)
+        end)
+    end
+
+    Library.Unload = function(Self, SkipFeatures)
+        if Library.Unloading then return end
+        Library.Unloading = true
+
+        if not SkipFeatures then
+            Library:DisableFeatures()
+        end
+
         for _, Connection in Library.Connections do
             pcall(function()
                 Connection:Disconnect()
@@ -877,7 +915,9 @@ local Library = { } do
             if Root then Root.Instance:Destroy() end
         end
 
-        getgenv().Zolar = nil
+        if getgenv().Zolar == Library then
+            getgenv().Zolar = nil
+        end
     end
 
     Library.Holder = Library:Create("ScreenGui", {
@@ -2942,11 +2982,7 @@ local Library = { } do
         end)
 
         UnloadHit:Connect("MouseButton1Down", function()
-            Window:SetOpen(false)
-
-            task.delay(Library.Animation.Time + 0.12, function()
-                Library:Unload()
-            end)
+            Library:Shutdown()
         end)
 
         local function ProfilePlace(Extra)
@@ -4070,6 +4106,12 @@ local Library = { } do
             return Toggle.Value
         end
 
+        function Toggle:Disable()
+            Toggle:Set(false)
+        end
+
+        table.insert(Library.FeatureControls, Toggle)
+
         Items.Hit:Connect("MouseButton1Down", function()
             Toggle:Set(not Toggle.Value)
         end)
@@ -4643,6 +4685,12 @@ local Library = { } do
             return Slider.Value
         end
 
+        function Slider:Disable()
+            Slider:Set(Slider.Default)
+        end
+
+        table.insert(Library.FeatureControls, Slider)
+
         local function Calculate(Input)
             local Fraction = AxisFraction(Input, Items.Track.Instance, "X")
             return Slider.Min + (Slider.Max - Slider.Min) * Fraction
@@ -4778,6 +4826,12 @@ local Library = { } do
         })
 
         Slider:Set(Slider.Default[1], Slider.Default[2], true)
+
+        function Slider:Disable()
+            Slider:Set(Slider.Default[1], Slider.Default[2])
+        end
+
+        table.insert(Library.FeatureControls, Slider)
 
         if Slider.Flag then
             Library.SetFlags[Slider.Flag] = function(Value)
@@ -5569,9 +5623,54 @@ local Library = { } do
         Items.ListHolder = MakeFrame({
             Parent = Page.Instance,
             Pos = UDim2.fromOffset(0, 52),
-            Size = UDim2.fromOffset(ColW, ContentH - 52),
+            Size = UDim2.fromOffset(ColW, ContentH - 96),
             Z = 3
         })
+
+        Items.Unload = MakeFrame({
+            Parent = Page.Instance,
+            Pos = UDim2.fromOffset(0, ContentH - 38),
+            Size = UDim2.fromOffset(ColW, 32),
+            Color = "Light",
+            Round = 6,
+            Clip = true,
+            Z = 3
+        })
+
+        MakeImage({
+            Parent = Items.Unload.Instance,
+            Icon = "power",
+            Anchor = Vector2.new(0, 0.5),
+            Pos = UDim2.new(0, 12, 0.5, 0),
+            Size = UDim2.fromOffset(14, 14),
+            Color = "DimText",
+            Z = 4
+        })
+
+        MakeText({
+            Parent = Items.Unload.Instance,
+            Text = "Unload",
+            TextSize = 14,
+            Size = UDim2.new(1, 0, 1, 0),
+            Color = "Text",
+            Align = Enum.TextXAlignment.Center,
+            Z = 4
+        })
+
+        local UnloadHit = MakeButton({
+            Parent = Items.Unload.Instance,
+            Z = 5
+        })
+
+        UnloadHit:OnHover(function()
+            Items.Unload:Tween({ BackgroundColor3 = Library.Theme.Hover })
+        end, function()
+            Items.Unload:Tween({ BackgroundColor3 = Library.Theme.Light })
+        end)
+
+        UnloadHit:Connect("MouseButton1Down", function()
+            Library:Shutdown()
+        end)
 
         Items.List = Library:Create("ScrollingFrame", {
             Parent = Items.ListHolder.Instance,

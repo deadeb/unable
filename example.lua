@@ -112,6 +112,9 @@ local General = MainTab:SubTab({ Name = "General", Icon = "settings" })
 local Movement = MainTab:SubTab({ Name = "Movement", Icon = "move" })
 local Look = VisualTab:SubTab({ Name = "Look", Icon = "palette" })
 
+local ConfigTab = Window:Tab({ Name = "Configs", Icon = "folder" })
+local Configs = ConfigTab:SubTab({ Name = "Configs", Icon = "save" })
+
 -- General --------------------------------------------------------------------
 
 local Features = General:Section({ Name = "Features", Side = "Left" })
@@ -241,6 +244,12 @@ Theme:Button({
         })
     end
 })
+
+-- Configs --------------------------------------------------------------------
+
+-- Theme config page: theme presets, color editing, config save/load/delete and
+-- the Unload button (disables every feature first, then tears the UI down).
+Configs:ThemeConfig({ })
 
 -- Ready ----------------------------------------------------------------------
 

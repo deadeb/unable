@@ -6,10 +6,12 @@
     - ScreenGui parented into the hidden CoreGui layer (gethui, then
       CoreGui, then PlayerGui as the last resort).
     - RightControl toggles the window.
-    - ProggyClean.ttf (body) and tahoma_bold.ttf (title, tabs, section
-      names) are read from the executor workspace and registered through
-      generated font-family files so Font.new can use them.
-    - Every label carries a one pixel black text outline.
+    - Body labels use Roblox's built-in Code face, which stays sharp at
+      these sizes. The custom ProggyClean TTF is antialiased and reads
+      blurry; set UseCustomBodyFont below to use the actual file anyway.
+    - tahoma_bold.ttf is used for the title, tabs, and section names. It
+      is read from the executor workspace, or downloaded once if missing.
+    - Every label carries a one pixel UIStroke outline.
     - Every skin card owns an empty ViewportFrame (Card.Viewport) so real
       3D previews can be attached later without touching the layout.
       Cards are available through UnableSkinsUI.Cards and CardsByName.
@@ -50,28 +52,41 @@ local Theme = {
 
 -- ---------------------------------------------------------------- font
 
+-- Custom TTF text is antialiased by the client at these sizes and reads
+-- soft. Roblox's built-in Code face stays sharp; flip this on only if the
+-- actual ProggyClean file matters more than crispness.
+local UseCustomBodyFont = false
+
 local BodyFontCandidates = {
     "fonts/ProggyClean.ttf",
     "ProggyClean.ttf",
-    "UnableSkins/ProggyClean.ttf",
     "fonts/proggyclean.ttf",
     "proggyclean.ttf",
     "fonts/ProggyClean.TTF",
     "ProggyClean.TTF",
 }
 
+local BodyFontURL = "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/ProggyClean.ttf"
+
 local HeadingFontCandidates = {
     "fonts/tahoma_bold.ttf",
     "tahoma_bold.ttf",
     "fonts/Tahoma_Bold.ttf",
     "Tahoma_Bold.ttf",
+    "fonts/Tahoma-Bold.ttf",
+    "Tahoma-Bold.ttf",
     "fonts/tahoma_bold.TTF",
     "tahoma_bold.TTF",
+    "TahomaBold.ttf",
 }
+
+local HeadingFontURL = "https://raw.githubusercontent.com/i77lhm/storage/main/fonts/tahoma_bold.ttf"
 
 -- Font.new expects a font-family asset, not a bare .ttf. Point a generated
 -- family file at the font that already lives in the executor workspace.
-local function LoadCustomFont(Candidates, FamilyName)
+-- If no candidate exists, fetch the font once and register it under
+-- FamilyName .. ".ttf" so later runs can pick it up from disk.
+local function LoadCustomFont(Candidates, FamilyName, FallbackURL)
     if type(getcustomasset) ~= "function" or type(writefile) ~= "function" then
         return nil
     end
@@ -92,13 +107,9 @@ local function LoadCustomFont(Candidates, FamilyName)
                 Paths[#Paths + 1] = Path
             end
         end
-
-        if #Paths == 0 then
-            Paths = { Candidates[1] }
-        end
     end
 
-    for _, FontPath in ipairs(Paths) do
+    local function TryPath(FontPath)
         local Ok, Result = pcall(function()
             local FontAsset = getcustomasset(FontPath)
 
@@ -130,13 +141,47 @@ local function LoadCustomFont(Candidates, FamilyName)
         if Ok and Result ~= nil then
             return Result
         end
+
+        return nil
+    end
+
+    for _, FontPath in ipairs(Paths) do
+        local Font = TryPath(FontPath)
+
+        if Font then
+            return Font
+        end
+    end
+
+    if FallbackURL then
+        local CanDownload = false
+
+        pcall(function()
+            CanDownload = type(game.HttpGet) == "function"
+        end)
+
+        if CanDownload then
+            local DownloadPath = FamilyName .. ".ttf"
+            local Downloaded = pcall(function()
+                writefile(DownloadPath, game:HttpGet(FallbackURL))
+            end)
+
+            if Downloaded then
+                return TryPath(DownloadPath)
+            end
+        end
     end
 
     return nil
 end
 
-local BodyFont = LoadCustomFont(BodyFontCandidates, "ProggyClean")
-local HeadingFont = LoadCustomFont(HeadingFontCandidates, "TahomaBold") or BodyFont
+local BodyFont = nil
+
+if UseCustomBodyFont then
+    BodyFont = LoadCustomFont(BodyFontCandidates, "ProggyClean", BodyFontURL)
+end
+
+local HeadingFont = LoadCustomFont(HeadingFontCandidates, "TahomaBold", HeadingFontURL)
 
 -- ---------------------------------------------------------------- helpers
 
@@ -176,8 +221,7 @@ local function Text(Properties, Heading)
     Label.BorderSizePixel = 0
     Label.TextColor3 = Theme.Text
     Label.TextSize = 12
-    Label.TextStrokeColor3 = Theme.TextOutline
-    Label.TextStrokeTransparency = 0
+    Label.TextStrokeTransparency = 1
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.TextYAlignment = Enum.TextYAlignment.Center
     Label.TextWrapped = false
@@ -196,6 +240,13 @@ local function Text(Properties, Heading)
     else
         Label.Font = Enum.Font.Code
     end
+
+    local Outline = Instance.new("UIStroke")
+    Outline.Color = Theme.TextOutline
+    Outline.Thickness = 1
+    Outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+    Outline.LineJoinMode = Enum.LineJoinMode.Miter
+    Outline.Parent = Label
 
     local Parent = nil
 
@@ -765,6 +816,10 @@ local function BuildWindow()
     local BaseScale = 1
     local Connections = {}
 
+    local function Snap(Value)
+        return math.floor(Value + 0.5)
+    end
+
     local function Clamp()
         local ScreenSize = GetViewport()
         local Scale = UIScale.Scale
@@ -792,7 +847,7 @@ local function BuildWindow()
             CenterY = math.clamp(CenterY, MinY, MaxY)
         end
 
-        Root.Position = UDim2.new(0.5, CenterX - ScreenSize.X * 0.5, 0.5, CenterY - ScreenSize.Y * 0.5)
+        Root.Position = UDim2.new(0.5, Snap(CenterX - ScreenSize.X * 0.5), 0.5, Snap(CenterY - ScreenSize.Y * 0.5))
     end
 
     local function UpdateScale()
@@ -872,8 +927,10 @@ local function BuildWindow()
             or Input.UserInputType == Enum.UserInputType.Touch
         then
             local Delta = Input.Position - DragStart
+            local X = DragOrigin.X.Offset + Delta.X
+            local Y = DragOrigin.Y.Offset + Delta.Y
 
-            Root.Position = UDim2.new(0.5, DragOrigin.X.Offset + Delta.X, 0.5, DragOrigin.Y.Offset + Delta.Y)
+            Root.Position = UDim2.new(0.5, Snap(X), 0.5, Snap(Y))
 
             Clamp()
         end

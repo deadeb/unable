@@ -400,7 +400,7 @@ local LegitTriggerToggle = LegitTrigger:Toggle({
     Flag = "LegitTriggerbot",
     Callback = function(Value) State.LegitTriggerbot = Value end
 })
-LegitTriggerToggle:Keybind({ Default = Enum.KeyCode.MouseButton2, Mode = "Hold", Flag = "KeybindLegitTriggerbot" })
+LegitTriggerToggle:Keybind({ Default = Enum.KeyCode.F, Mode = "Hold", Flag = "KeybindLegitTriggerbot" })
 
 LegitTrigger:Slider({
     Name = "Reaction time",

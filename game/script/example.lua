@@ -4244,4 +4244,6 @@ function Runtime:Start()
 	self:Notify("Unable", "Kontra runtime ready. Open the menu and bind your keys.")
 end
 
+Window.NavPinned = true
+Window:SetOpen(true)
 Runtime:Start()

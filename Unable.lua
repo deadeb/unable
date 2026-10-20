@@ -543,12 +543,20 @@ local Library = { } do
     end
 
     Library.Round = function(Self, Number, Float)
-        Float = Float or 1
+        if type(Number) ~= "number" then
+            return Number
+        end
+
+        Float = tonumber(Float) or 1
+
+        if Float <= 0 then
+            return math.floor(Number + 0.5)
+        end
 
         local Result = math.floor(Number / Float + 0.5) * Float
         local Places = math.max(0, math.ceil(-math.log(Float, 10)))
 
-        return tonumber(string.format("%." .. Places .. "f", Result))
+        return tonumber(string.format("%." .. Places .. "f", Result)) or Result
     end
 
     Library.Tween = function(Self, Properties, Info, RawItem)

@@ -775,6 +775,20 @@ This is a Source-style movement model scaled to Roblox studs:
 - Ground acceleration/friction, a stop speed, and a separate air-acceleration model with an air-strafe cap.
 - Jump impulse plus gravity; no automatic bunny hop and no bunny-hop enablement, so chaining jumps does not preserve/grow speed. Air-strafing still works within the 2.082 cap.
 - Ducking shrinks the hull (5 → 3.75 studs), reduces speed through a duck-speed recovery curve, and has a cooldown.
+
+**Air-strafe and “sub-tick”**
+
+`AirMove` is the Source air-acceleration formula:
+
+```text
+addspeed  = min(2.082, wishspeed) - dot(velocity, wishdir)
+accelspeed = min(addspeed, 12 * wishspeed * dt * (AirFrictionReduced and 0.65 or 1))
+velocity  += accelspeed * wishdir
+```
+
+The networked command has only digital 8-way `Inputs` (`Forward`/`Backward`/`Left`/`Right`), `AdditionalInputs`, 16-bit `Yaw`/`Pitch`, `ClientTick`, `ServerTick`, and `RenderTime`. There is no analog `MoveX`/`MoveZ` field and no sub-tick movement timestamp; `RenderTime` is for shot/camera rewind. Every command is simulated at **1/64 s**. `MaxTickRate = 240` is a catch-up/history ceiling, not a second simulation rate. A CS2-style sub-tick strafer therefore has no input channel here; the equivalent is a tick-perfect auto-strafe that changes `Left`/`Right` and yaw once per 64 Hz command.
+
+`EnableBunnyHop` and `AutoBunnyHop` are both `false`, so `CheckJumpButton` clamps takeoff horizontal speed to `18.044 * 1.1 = 19.8484`; a single jump can still gain speed through air-strafing, but jumps do not chain into CS-style bunny-hop acceleration. `Tattletale` guards `AirMove`/`WalkMove` themselves, not the player’s input pattern; an auto-strafe built from ordinary movement inputs does not trip those function checks. Server-side command/movement validation is the remaining unknown; `MaxCommandSpeedThreshold` exists in the replicated config, but its consumer is not in the client dump.
 - Ladders have grab/climb ranges, a speed scale, jump-off impulse, and a short jump-ignore window.
 - Step-up (1.75 studs), step-down, slope limit (0.7), hull broadphase and stuck checks.
 - Fall damage and a terminal falling speed of -120.

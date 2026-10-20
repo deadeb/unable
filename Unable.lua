@@ -2380,6 +2380,7 @@ local Library = { } do
             Icon = Params.Icon or "layers",
             IsOpen = true,
             NavOpen = false,
+            NavPinned = false,
             Tabs = { },
             Current = nil,
             ContentW = ContentW,
@@ -2482,6 +2483,24 @@ local Library = { } do
             Fit = true,
             Z = 3
         })
+
+        Items.NavHit = MakeButton({
+            Parent = Items.TopBar.Instance,
+            Pos = UDim2.fromOffset(6, 6),
+            Size = UDim2.fromOffset(38, 38),
+            Z = 5
+        })
+
+        Items.NavHit:OnHover(function()
+            Items.HubIcon:Tween({ ImageColor3 = Library.Theme.Text })
+        end, function()
+            Items.HubIcon:Tween({ ImageColor3 = Color3.new(1, 1, 1) })
+        end)
+
+        Items.NavHit:Connect("MouseButton1Down", function()
+            Window.NavPinned = not Window.NavPinned
+            Window:SetNavOpen(Window.NavPinned or IsOverObject(Items.Sidebar.Instance))
+        end)
 
         Items.Search = MakeFrame({
             Parent = Items.TopBar.Instance,
@@ -2960,6 +2979,16 @@ local Library = { } do
             Z = 46
         })
 
+        MakeImage({
+            Parent = UnloadButton.Instance,
+            Icon = "power",
+            Anchor = Vector2.new(0, 0.5),
+            Pos = UDim2.new(0, 12, 0.5, 0),
+            Size = UDim2.fromOffset(14, 14),
+            Color = "DimText",
+            Z = 47
+        })
+
         MakeText({
             Parent = UnloadButton.Instance,
             Text = "Unload",
@@ -3098,13 +3127,14 @@ local Library = { } do
                 return
             end
 
-            Window:SetNavOpen(IsOverObject(Items.Sidebar.Instance))
+            Window:SetNavOpen(Window.NavPinned or IsOverObject(Items.Sidebar.Instance))
         end)
 
         function Window:SetOpen(Bool)
             Window.IsOpen = Bool
 
             if not Bool then
+                Window.NavPinned = false
                 Library:CloseAllPopups()
             end
 
@@ -3322,8 +3352,12 @@ local Library = { } do
 
         function Tab:SetLabelVisible(Visible)
             local Info = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+            local Label = Items.Label.Instance
 
-            Library:Tween({ TextTransparency = Visible and 0 or 1 }, Info, Items.Label.Instance)
+            Library:Tween({ TextTransparency = Visible and 0 or 1 }, Info, Label)
+            Library:Tween({
+                Position = UDim2.new(0, Visible and 44 or 38, 0.5, 0)
+            }, Info, Label)
 
             for _, Sub in Tab.Subs do
                 Sub:SetLabelVisible(Visible)
@@ -3534,8 +3568,12 @@ local Library = { } do
             end
 
             local Info = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+            local Label = Items.Label.Instance
 
-            Library:Tween({ TextTransparency = Visible and 0 or 1 }, Info, Items.Label.Instance)
+            Library:Tween({ TextTransparency = Visible and 0 or 1 }, Info, Label)
+            Library:Tween({
+                Position = UDim2.new(0, Visible and 34 or 28, 0.5, 0)
+            }, Info, Label)
         end
 
         Items.Pill:OnHover(function()

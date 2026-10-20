@@ -1,2 +1,5 @@
 # Local GitHub token used by example.lua (never commit secrets)
 UnableToken.txt
+
+# Icon atlas build dependencies
+icons/node_modules/

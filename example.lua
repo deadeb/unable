@@ -128,70 +128,300 @@ local Window = Library:Window({
 
 -- Tabs (top level of the hover sidebar) --------------------------------------
 
-local MainTab = Window:Tab({ Name = "Main", Icon = "home" })
-local VisualTab = Window:Tab({ Name = "Visuals", Icon = "eye" })
+local CombatTab = Window:Tab({ Name = "Combat", Icon = "swords" })
+local EspTab = Window:Tab({ Name = "ESP", Icon = "radar" })
+local MovementTab = Window:Tab({ Name = "Movement", Icon = "footprints" })
+local WorldTab = Window:Tab({ Name = "World", Icon = "globe" })
+local MiscTab = Window:Tab({ Name = "Misc", Icon = "wrench" })
+local ConfigTab = Window:Tab({ Name = "Configs", Icon = "folder" })
 
 -- Sub tabs (listed under the active tab in the sidebar) ----------------------
+-- Tabs with no sub tabs still need a page for their sections, so they get a
+-- hidden one and the sidebar shows nothing extra.
 
-local General = MainTab:SubTab({ Name = "General", Icon = "settings" })
-local Movement = MainTab:SubTab({ Name = "Movement", Icon = "move" })
-local Look = VisualTab:SubTab({ Name = "Look", Icon = "palette" })
+local Rage = CombatTab:SubTab({ Name = "Rage", Icon = "flame" })
+local Legit = CombatTab:SubTab({ Name = "Legit", Icon = "shield-check" })
 
-local ConfigTab = Window:Tab({ Name = "Configs", Icon = "folder" })
+local EspMain = EspTab:SubTab({ Name = "Main", Icon = "layout-dashboard" })
+local Chams = EspTab:SubTab({ Name = "Chams", Icon = "shirt" })
+
+local Movement = MovementTab:SubTab({ Name = "Movement", Icon = "footprints", Hidden = true })
+
+local World = WorldTab:SubTab({ Name = "World", Icon = "map" })
+local PostProcessing = WorldTab:SubTab({ Name = "Post processing", Icon = "sliders-horizontal" })
+
+local Misc = MiscTab:SubTab({ Name = "Misc", Icon = "wrench", Hidden = true })
+
 local Configs = ConfigTab:SubTab({ Name = "Configs", Icon = "save" })
 
--- General --------------------------------------------------------------------
+-- Small helper so the demo callbacks stay readable ---------------------------
 
-local Features = General:Section({ Name = "Features", Side = "Left" })
-local Info = General:Section({ Name = "Info", Side = "Right" })
+local function Log(Name)
+    return function(Value)
+        print("[Unable] " .. Name .. ":", Value)
+    end
+end
 
-Features:Toggle({
-    Name = "Example toggle",
-    Flag = "ExampleToggle",
+-- Combat / Rage ---------------------------------------------------------------
+
+local Aimbot = Rage:Section({ Name = "Aimbot", Side = "Left" })
+local Target = Rage:Section({ Name = "Target", Side = "Right" })
+
+Aimbot:Toggle({
+    Name = "Enabled",
+    Flag = "RageAimbot",
+    Callback = Log("Rage aimbot")
+})
+
+Aimbot:Slider({
+    Name = "FOV",
+    Flag = "RageFOV",
+    Min = 1,
+    Max = 360,
+    Default = 120,
+    Decimals = 0,
+    Callback = Log("Rage FOV")
+})
+
+Aimbot:Dropdown({
+    Name = "Hitbox",
+    Flag = "RageHitbox",
+    Options = { "Head", "Torso", "Nearest" },
+    Default = "Head",
+    Callback = Log("Rage hitbox")
+})
+
+Aimbot:Slider({
+    Name = "Smoothing",
+    Flag = "RageSmoothing",
+    Min = 1,
+    Max = 20,
+    Default = 1,
+    Decimals = 0,
+    Callback = Log("Rage smoothing")
+})
+
+Target:Toggle({
+    Name = "Team check",
+    Flag = "RageTeamCheck",
     Default = true,
-    Callback = function(Value)
-        print("[Unable] Example toggle:", Value)
-    end
+    Callback = Log("Rage team check")
 })
 
-Features:Dropdown({
+Target:Toggle({
+    Name = "Wall check",
+    Flag = "RageWallCheck",
+    Default = true,
+    Callback = Log("Rage wall check")
+})
+
+Target:Dropdown({
+    Name = "Priority",
+    Flag = "RagePriority",
+    Options = { "Distance", "Health", "FOV" },
+    Default = "Distance",
+    Callback = Log("Rage priority")
+})
+
+Target:Slider({
+    Name = "Max distance",
+    Flag = "RageDistance",
+    Min = 50,
+    Max = 2000,
+    Default = 1000,
+    Decimals = 0,
+    Callback = Log("Rage distance")
+})
+
+-- Combat / Legit --------------------------------------------------------------
+
+local Trigger = Legit:Section({ Name = "Triggerbot", Side = "Left" })
+local Silent = Legit:Section({ Name = "Silent aim", Side = "Right" })
+
+Trigger:Toggle({
+    Name = "Enabled",
+    Flag = "LegitTrigger",
+    Callback = Log("Triggerbot")
+})
+
+Trigger:Slider({
+    Name = "Delay",
+    Flag = "TriggerDelay",
+    Min = 0,
+    Max = 500,
+    Default = 60,
+    Decimals = 0,
+    Suffix = " ms",
+    Callback = Log("Trigger delay")
+})
+
+Trigger:Keybind({
+    Name = "Trigger key",
+    Flag = "TriggerKey",
+    Default = Enum.KeyCode.E,
+    Callback = Log("Trigger key")
+})
+
+Silent:Toggle({
+    Name = "Enabled",
+    Flag = "LegitSilent",
+    Callback = Log("Silent aim")
+})
+
+Silent:Dropdown({
     Name = "Mode",
-    Flag = "ExampleMode",
-    Options = { "Low", "Normal", "High" },
-    Default = "Normal",
-    Callback = function(Value)
-        print("[Unable] Mode:", Value)
-    end
+    Flag = "SilentMode",
+    Options = { "Always", "On key" },
+    Default = "On key",
+    Callback = Log("Silent mode")
 })
 
-Features:Textbox({
-    Name = "Message",
-    Flag = "ExampleMessage",
-    Placeholder = "Type something...",
-    Callback = function(Value)
-        print("[Unable] Message:", Value)
-    end
+Silent:Slider({
+    Name = "Hit chance",
+    Flag = "SilentChance",
+    Min = 1,
+    Max = 100,
+    Default = 100,
+    Decimals = 0,
+    Suffix = "%",
+    Callback = Log("Hit chance")
 })
 
-Features:Keybind({
-    Name = "Print key",
-    Flag = "ExampleKey",
-    Default = Enum.KeyCode.H,
-    Callback = function(Key)
-        print("[Unable] Key pressed:", Key)
-    end
+Silent:Keybind({
+    Name = "Aim key",
+    Flag = "SilentKey",
+    Default = Enum.KeyCode.Q,
+    Callback = Log("Aim key")
 })
 
-Info:Label({ Name = "Left column, right section" })
+-- ESP / Main ------------------------------------------------------------------
 
-Info:Paragraph({
-    Title = "Sidebar",
-    Content = "Hover the sidebar to expand it. Tabs and sub tabs both live inside that sidebar now."
+local Players = EspMain:Section({ Name = "Players", Side = "Left" })
+local Colors = EspMain:Section({ Name = "Colors", Side = "Right" })
+
+Players:Toggle({
+    Name = "Enabled",
+    Flag = "EspEnabled",
+    Default = true,
+    Callback = Log("ESP")
 })
 
--- Movement -------------------------------------------------------------------
+Players:Dropdown({
+    Name = "Box",
+    Flag = "EspBox",
+    Options = { "None", "2D", "3D" },
+    Default = "2D",
+    Callback = Log("ESP box")
+})
+
+Players:Dropdown({
+    Name = "Name",
+    Flag = "EspName",
+    Options = { "None", "Display", "Username" },
+    Default = "Display",
+    Callback = Log("ESP name")
+})
+
+Players:Slider({
+    Name = "Distance",
+    Flag = "EspDistance",
+    Min = 50,
+    Max = 2000,
+    Default = 1000,
+    Decimals = 0,
+    Callback = Log("ESP distance")
+})
+
+Colors:Toggle({
+    Name = "Team check",
+    Flag = "EspTeamCheck",
+    Default = true,
+    Callback = Log("ESP team check")
+})
+
+Colors:Toggle({
+    Name = "Team color",
+    Flag = "EspTeamColor",
+    Default = true,
+    Callback = Log("ESP team color")
+})
+
+Colors:Colorpicker({
+    Name = "Enemy",
+    Flag = "EspEnemyColor",
+    Default = Color3.fromRGB(255, 70, 70),
+    Callback = Log("Enemy color")
+})
+
+Colors:Colorpicker({
+    Name = "Friendly",
+    Flag = "EspFriendlyColor",
+    Default = Color3.fromRGB(80, 160, 255),
+    Callback = Log("Friendly color")
+})
+
+-- ESP / Chams -----------------------------------------------------------------
+
+local ChamsSection = Chams:Section({ Name = "Chams", Side = "Left" })
+local Outline = Chams:Section({ Name = "Outline", Side = "Right" })
+
+ChamsSection:Toggle({
+    Name = "Enabled",
+    Flag = "ChamsEnabled",
+    Callback = Log("Chams")
+})
+
+ChamsSection:Dropdown({
+    Name = "Material",
+    Flag = "ChamsMaterial",
+    Options = { "ForceField", "Plastic", "Neon", "Glass" },
+    Default = "ForceField",
+    Callback = Log("Chams material")
+})
+
+ChamsSection:Colorpicker({
+    Name = "Visible",
+    Flag = "ChamsVisible",
+    Default = Color3.fromRGB(90, 255, 140),
+    Callback = Log("Chams visible")
+})
+
+ChamsSection:Colorpicker({
+    Name = "Hidden",
+    Flag = "ChamsHidden",
+    Default = Color3.fromRGB(255, 90, 90),
+    Callback = Log("Chams hidden")
+})
+
+Outline:Toggle({
+    Name = "Enabled",
+    Flag = "OutlineEnabled",
+    Default = true,
+    Callback = Log("Outline")
+})
+
+Outline:Slider({
+    Name = "Thickness",
+    Flag = "OutlineThickness",
+    Min = 1,
+    Max = 10,
+    Default = 1,
+    Decimals = 0,
+    Callback = Log("Outline thickness")
+})
+
+Outline:Dropdown({
+    Name = "Style",
+    Flag = "OutlineStyle",
+    Options = { "Default", "Glow" },
+    Default = "Default",
+    Callback = Log("Outline style")
+})
+
+-- Movement --------------------------------------------------------------------
 
 local Player = Movement:Section({ Name = "Player", Side = "Left" })
+local MoveUtility = Movement:Section({ Name = "Utility", Side = "Right" })
 
 Player:Slider({
     Name = "Walk speed",
@@ -227,38 +457,212 @@ Player:Slider({
     end
 })
 
--- Look -----------------------------------------------------------------------
+MoveUtility:Toggle({
+    Name = "Infinite jump",
+    Flag = "InfiniteJump",
+    Callback = Log("Infinite jump")
+})
 
-local Theme = Look:Section({ Name = "Theme", Side = "Left" })
+MoveUtility:Toggle({
+    Name = "Fly",
+    Flag = "Fly",
+    Callback = Log("Fly")
+})
 
-Theme:Colorpicker({
-    Name = "Accent",
-    Flag = "Accent",
-    Default = Library.Theme.Accent,
-    Callback = function(Color)
-        Library:SetAccent(Color)
-        Library:ApplyThemeInstant()
+MoveUtility:Keybind({
+    Name = "Fly key",
+    Flag = "FlyKey",
+    Default = Enum.KeyCode.F,
+    Callback = Log("Fly key")
+})
+
+MoveUtility:Slider({
+    Name = "Fly speed",
+    Flag = "FlySpeed",
+    Min = 20,
+    Max = 500,
+    Default = 80,
+    Decimals = 0,
+    Callback = Log("Fly speed")
+})
+
+-- World / World ---------------------------------------------------------------
+
+local Environment = World:Section({ Name = "Environment", Side = "Left" })
+local Sky = World:Section({ Name = "Sky", Side = "Right" })
+
+Environment:Toggle({
+    Name = "Fullbright",
+    Flag = "Fullbright",
+    Callback = Log("Fullbright")
+})
+
+Environment:Slider({
+    Name = "Clock time",
+    Flag = "ClockTime",
+    Min = 0,
+    Max = 24,
+    Default = 14,
+    Decimals = 1,
+    Callback = Log("Clock time")
+})
+
+Environment:Toggle({
+    Name = "Fog",
+    Flag = "Fog",
+    Default = true,
+    Callback = Log("Fog")
+})
+
+Environment:Slider({
+    Name = "Fog end",
+    Flag = "FogEnd",
+    Min = 100,
+    Max = 5000,
+    Default = 1000,
+    Decimals = 0,
+    Callback = Log("Fog end")
+})
+
+Sky:Dropdown({
+    Name = "Weather",
+    Flag = "Weather",
+    Options = { "Clear", "Rain", "Snow", "Fog" },
+    Default = "Clear",
+    Callback = Log("Weather")
+})
+
+Sky:Slider({
+    Name = "Star count",
+    Flag = "StarCount",
+    Min = 0,
+    Max = 5000,
+    Default = 1000,
+    Decimals = 0,
+    Callback = Log("Star count")
+})
+
+Sky:Button({
+    Name = "Apply sky",
+    Callback = function()
+        Library:Notification({
+            Name = "Sky",
+            Description = "Sky settings applied.",
+            Icon = "check",
+            Duration = 3
+        })
     end
 })
 
-local PresetNames = { }
+-- World / Post processing -----------------------------------------------------
 
-for _, Preset in Library.ThemePresets do
-    table.insert(PresetNames, Preset.Name)
-end
+local Effects = PostProcessing:Section({ Name = "Effects", Side = "Left" })
+local Presets = PostProcessing:Section({ Name = "Presets", Side = "Right" })
 
-Theme:Dropdown({
-    Name = "Theme preset",
-    Flag = "ThemePreset",
-    Options = PresetNames,
+Effects:Toggle({
+    Name = "Color correction",
+    Flag = "ColorCorrection",
+    Default = true,
+    Callback = Log("Color correction")
+})
+
+Effects:Slider({
+    Name = "Bloom",
+    Flag = "Bloom",
+    Min = 0,
+    Max = 3,
+    Default = 1,
+    Decimals = 2,
+    Callback = Log("Bloom")
+})
+
+Effects:Slider({
+    Name = "Blur",
+    Flag = "Blur",
+    Min = 0,
+    Max = 20,
+    Default = 0,
+    Decimals = 0,
+    Callback = Log("Blur")
+})
+
+Effects:Slider({
+    Name = "Saturation",
+    Flag = "Saturation",
+    Min = -1,
+    Max = 1,
+    Default = 0,
+    Decimals = 2,
+    Callback = Log("Saturation")
+})
+
+Presets:Dropdown({
+    Name = "Preset",
+    Flag = "PostPreset",
+    Options = { "Default", "Cinematic", "Vivid", "Soft" },
     Default = "Default",
-    Callback = function(Value)
-        Library:SetTheme(Value)
-        Library:ApplyThemeInstant()
+    Callback = Log("Post preset")
+})
+
+Presets:Button({
+    Name = "Apply preset",
+    Callback = function()
+        Library:Notification({
+            Name = "Post processing",
+            Description = "Applied preset: " .. tostring(Library.Flags.PostPreset or "Default"),
+            Icon = "sliders-horizontal",
+            Duration = 3
+        })
     end
 })
 
-Theme:Button({
+-- Misc ------------------------------------------------------------------------
+
+local MiscUtility = Misc:Section({ Name = "Utility", Side = "Left" })
+local About = Misc:Section({ Name = "About", Side = "Right" })
+
+MiscUtility:Toggle({
+    Name = "Anti-AFK",
+    Flag = "AntiAfk",
+    Default = true,
+    Callback = Log("Anti-AFK")
+})
+
+MiscUtility:Toggle({
+    Name = "FPS unlocker",
+    Flag = "FpsUnlocker",
+    Callback = Log("FPS unlocker")
+})
+
+MiscUtility:Keybind({
+    Name = "Menu key",
+    Flag = "MenuKey",
+    Default = Enum.KeyCode.RightShift,
+    Callback = Log("Menu key")
+})
+
+MiscUtility:Button({
+    Name = "Copy job id",
+    Callback = function()
+        if setclipboard then
+            pcall(setclipboard, game.JobId)
+        end
+
+        Library:Notification({
+            Name = "Job id",
+            Description = game.JobId ~= "" and game.JobId or "Not available on this server.",
+            Icon = "copy",
+            Duration = 4
+        })
+    end
+})
+
+About:Paragraph({
+    Title = "Unable",
+    Content = "Hover the sidebar to expand it, or click the logo in the title bar to pin it open."
+})
+
+About:Button({
     Name = "Test notification",
     Callback = function()
         Library:Notification({

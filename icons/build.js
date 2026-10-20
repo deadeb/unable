@@ -43,7 +43,20 @@ const Icons = {
     "share-2": ["share-2", "share2"],
     "trash-2": ["trash-2", "trash2"],
     "triangle-alert": ["triangle-alert", "alert-triangle"],
-    "x": ["x"]
+    "x": ["x"],
+
+    // menu tabs and sub tabs
+    "swords": ["swords"],
+    "flame": ["flame"],
+    "shield-check": ["shield-check"],
+    "radar": ["radar"],
+    "layout-dashboard": ["layout-dashboard"],
+    "shirt": ["shirt"],
+    "footprints": ["footprints"],
+    "globe": ["globe"],
+    "map": ["map"],
+    "sliders-horizontal": ["sliders-horizontal"],
+    "wrench": ["wrench"]
 };
 
 const Cell = 96;

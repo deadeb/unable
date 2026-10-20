@@ -6,7 +6,8 @@ downloaded from this repository, written into the executor workspace and served
 through `getcustomasset`, so it stays crisp at any UI scale and needs no
 Roblox asset uploads.
 
-- `atlas.png` - 8 columns x 3 rows of 96x96 cells, white icons on transparency.
+- `atlas.png` - 8 columns of 96x96 cells (currently 34 icons, 5 rows), white
+  icons on transparency.
 - `svg/` - the source SVGs used to build the atlas.
 - `build.js` - regenerates `atlas.png` from `lucide-static` and `sharp`.
 

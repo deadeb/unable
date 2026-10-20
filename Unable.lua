@@ -118,9 +118,9 @@ local Library = { } do
     Library.TitleFont = UiFontBold
 
     Library.IconAtlas = {
-        Url = "https://raw.githubusercontent.com/deadeb/unable/main/icons/atlas.png",
+        Url = "https://raw.githubusercontent.com/deadeb/unable/main/icons/atlas.png?v=2",
         Folder = "UnableAssets",
-        File = "UnableAssets/atlas-1.png",
+        File = "UnableAssets/atlas-2.png",
         Cell = 96,
         Columns = 8,
         Asset = nil,
@@ -148,7 +148,18 @@ local Library = { } do
             ["share-2"] = 20,
             ["trash-2"] = 21,
             ["triangle-alert"] = 22,
-            ["x"] = 23
+            ["x"] = 23,
+            ["swords"] = 24,
+            ["flame"] = 25,
+            ["shield-check"] = 26,
+            ["radar"] = 27,
+            ["layout-dashboard"] = 28,
+            ["shirt"] = 29,
+            ["footprints"] = 30,
+            ["globe"] = 31,
+            ["map"] = 32,
+            ["sliders-horizontal"] = 33,
+            ["wrench"] = 34
         }
     }
 
@@ -3202,10 +3213,11 @@ local Library = { } do
                 Y += 44
 
                 local ShowSubs = Window.Current == Tab
+                local SubCount = 0
 
                 for _, Sub in Tab.Subs do
                     local Pill = Sub.Items.Pill.Instance
-                    local Visible = ShowSubs and SubsOpen
+                    local Visible = ShowSubs and SubsOpen and not Sub.Hidden
 
                     if Visible then
                         if not Pill.Visible then
@@ -3217,12 +3229,13 @@ local Library = { } do
                         }, Info, Pill)
 
                         Y += 32
+                        SubCount += 1
                     end
 
                     Pill.Visible = Visible
                 end
 
-                if ShowSubs and SubsOpen and #Tab.Subs > 0 then
+                if SubCount > 0 then
                     Y += 4
                 end
             end
@@ -3576,6 +3589,7 @@ local Library = { } do
         local SubTab = {
             Name = Params.Name or "SubTab",
             Icon = Params.Icon or "circle",
+            Hidden = Params.Hidden or false,
             Tab = Tab,
             Window = Window,
             Sections = { },
